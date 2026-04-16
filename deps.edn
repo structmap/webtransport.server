@@ -1,0 +1,7 @@
+{:paths       ["src/main/clojure"]
+ :deps        {org.clojure/clojure {:mvn/version "1.12.4"}
+               com.squareup.okhttp3/okhttp-tls {:mvn/version "4.10.0"}}
+ :aliases     {:test        {:extra-paths ["src/test/clojure"]}
+               :util        {:extra-paths ["src/util/clojure"]}
+               :write-certs {:exec-fn   com.structmap.http3.util/write-certs!
+                             :exec-args {}}}}
