@@ -38,3 +38,9 @@ will be prompted to enter your password to persist the changes.
 
 If you're on Windows and using Chrome or Edge then go to Settings > Privacy and
 security > Security > Manage certificates to import your `ca.pem` file.
+
+## running
+
+```
+dotnet run --project src/main/csharp -p:TargetArchitecture=x64
+```
