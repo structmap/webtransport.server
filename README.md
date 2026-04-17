@@ -42,5 +42,5 @@ security > Security > Manage certificates to import your `ca.pem` file.
 ## running
 
 ```
-dotnet run --project src/main/csharp -p:TargetArchitecture=x64
+dotnet run --project src/main/csharp -p:Platform=x64
 ```

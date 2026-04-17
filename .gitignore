@@ -11,5 +11,6 @@
 .nrepl-port
 .cpcache/
 
+.DS_Store
 *.pem
 *.dll

@@ -1,7 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <RuntimeIdentifier Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$(PROCESSOR_ARCHITECTURE)' == 'AMD64'">win-x64</RuntimeIdentifier>
-    <RuntimeIdentifier Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$(TargetArchitecture)' == 'arm64'">osx-arm64</RuntimeIdentifier>
-    <RuntimeIdentifier Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$(TargetArchitecture)' == 'x64'">osx-x64</RuntimeIdentifier>
-  </PropertyGroup>
-</Project>

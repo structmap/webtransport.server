@@ -5,13 +5,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Configurations>Release;Debug</Configurations>
+    <Platforms>AnyCPU;arm64;x64</Platforms>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Condition="'$(RuntimeIdentifier)' == 'win-x64'"
+    <PackageReference Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$(PROCESSOR_ARCHITECTURE)' == 'AMD64'"
                       Include="Structmap.WebTransportFast.win-x64" Version="0.0.1-alpha7" />
-    <PackageReference Condition="'$(RuntimeIdentifier)' == 'osx-x64'"
-                      Include="Structmap.WebTransportFast.osx-x64" Version="0.0.1-alpha7" />
-    <PackageReference Condition="'$(RuntimeIdentifier)' == 'osx-arm64'"
+    <PackageReference Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$(Platform)' == 'arm64'"
                       Include="Structmap.WebTransportFast.osx-arm64" Version="0.0.1-alpha7" />
+    <PackageReference Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$(Platform)' == 'x64'"
+                      Include="Structmap.WebTransportFast.osx-x64" Version="0.0.1-alpha7" />
   </ItemGroup>
 </Project>
