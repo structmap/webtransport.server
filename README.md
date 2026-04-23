@@ -1,5 +1,20 @@
 # http3
 
+## compatibility
+
+Structmap HTTP3 is a multi-language library for integrating HTTP3 server functionality into your JVM or .NET application. Each library implementation wraps native dependencies (libwtf and MsQuic) for which pre-built packages are provided.
+
+| Language | Runtime | Platform | Architecture | Link |
+|---|---|---|---|---|
+| C# | .NET | Windows | x64 | - |
+| C# | .NET | macOS | x64 | - |
+| C# | .NET | macOS | arm64 | - |
+| Java | JVM | Windows | x64 | - |
+| Java | JVM | macOS | x64 | - |
+| Java | JVM | macOS | arm64 | - |
+
+For Clojure on either the JVM or .NET (ClojureCLR) you just need the corresponding Java/C# package because the source files are embedded as resources.
+
 ## getting started
 
 HTTPS runs on TCP wrapped in TLS but HTTP3 is different: it is UDP-based and
