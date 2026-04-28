@@ -1,31 +1,22 @@
-# http3
+# webtransport.server
 
-## compatibility
+WebTransport is a new browser Javascript API and a part of the HTTP3 spec (RFC
+9221). To handle WebTransport connections on the server-side you need a partial
+HTTP3 implementation.
 
-Structmap HTTP3 is a multi-language library for integrating HTTP3 server functionality into your JVM or .NET application. Each library implementation wraps native dependencies (libwtf and MsQuic) for which pre-built packages are provided.
-
-| Language | Runtime | Platform | Architecture | Link |
-|---|---|---|---|---|
-| C# | .NET | Windows | x64 | - |
-| C# | .NET | macOS | x64 | - |
-| C# | .NET | macOS | arm64 | - |
-| Java | JVM | Windows | x64 | - |
-| Java | JVM | macOS | x64 | - |
-| Java | JVM | macOS | arm64 | - |
-
-For Clojure on either the JVM or .NET (ClojureCLR) you just need the corresponding Java/C# package because the source files are embedded as resources.
+This project wraps libwtf for Java, C# and Clojure programs to allow you to
+respond to WebTransport connections, streams and datagrams. The packages are
+platform-specific because they include native dependencies (libwtf and MsQuic).
 
 ## getting started
 
-HTTPS runs on TCP wrapped in TLS but HTTP3 is different: it is UDP-based and
-TLS 1.3 is an integrated part of the protocol. It is not a wrapper that can be
-disabled for local development convenience.
-
-You need a cert and key for HTTP3 and a plain old RSA certificate might work
-fine but if you are doing WebTransport then browsers impose some specific
-requirements. If you look online there is a lot of confusion about these and
-they will evolve over time but presently for me to get a connection in Safari
-on Mac or iOS and Chrome or Edge on Windows the cert/key pair:
+Encryption is an integrated part of the HTTP3 protocol. TLS is not a layer can
+be disabled for local development convenience. You need a cert and key for
+HTTP3 and a plain old RSA certificate might work fine but if you are doing
+WebTransport then browsers impose some specific requirements. If you look
+online there is a lot of confusion about these and they will evolve over time
+but presently for me to get a connection in Safari on Mac or iOS and Chrome or
+Edge on Windows the cert/key pair:
  - must be ECDSA not RSA
  - must use NIST P-256 (prime256v1 / secp256r1) curve
  - must use SHA-256 signature hash
