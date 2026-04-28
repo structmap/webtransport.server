@@ -37,10 +37,10 @@ On the server-side:
 
 (def server
   (wt/create-server
-    {:host "localhost"
-     :port 8443
-     :handler #'myhandler
-     :tls ["cert.pem" "key.pem"]}))
+    #::wt{:host "localhost"
+          :port 8443
+          :handler #'myhandler
+          :tls ["cert.pem" "key.pem"]}))
 
 (wt/start server)
 ```
