@@ -1,22 +1,63 @@
-# webtransport.server
+# WebTransport Server
 
 WebTransport is a new browser Javascript API and a part of the HTTP3 spec (RFC
 9221). To handle WebTransport connections on the server-side you need a partial
-HTTP3 implementation.
+HTTP3 implementation on top of a QUIC engine.
 
 This project wraps libwtf for Java, C# and Clojure programs to allow you to
-respond to WebTransport connections, streams and datagrams. The packages are
-platform-specific because they include native dependencies (libwtf and MsQuic).
+respond to handle WebTransport streams and datagrams. The packages include
+native dependencies (libwtf and MsQuic) so they are platform-specific.
 
-## getting started
+## Example
+
+On the client-side:
+
+```js
+const url = 'https://localhost:8443/echo';
+const transport = new WebTransport(url);
+await transport.ready;
+const reader = transport.datagrams.readable.getReader();
+const decoder = new TextDecoder('utf-8');
+const { value, done } = await reader.read();
+let data = decoder.decode(value);
+console.log(data);
+```
+
+On the server-side:
+```clj
+(require '[com.structmap.webtransport.server :as wt])
+
+(defn myhandler [session]
+  (println (format "new session: %s" session))
+  (wt/send session (wt/datagram "hello world"))
+  (doseq [evt (wt/events session)]
+     (when (wt/datagram? evt)
+           (println "echoing datagram")
+           (wt/send session evt))))
+
+(def server
+  (wt/create-server
+    {:host "localhost"
+     :port 8443
+     :handler #'myhandler
+     :tls ["cert.pem" "key.pem"]}))
+
+(wt/start server)
+```
+
+The JVM implementation uses a virtual thread per WebTransport session. For .NET
+the implementation starts one task per session on the default scheduler. To
+start with JDK 25+ and .NET 10 are the only supported platform versions.
+
+## Docs
+
+See link.
+
+## Setup
 
 Encryption is an integrated part of the HTTP3 protocol. TLS is not a layer can
-be disabled for local development convenience. You need a cert and key for
-HTTP3 and a plain old RSA certificate might work fine but if you are doing
-WebTransport then browsers impose some specific requirements. If you look
-online there is a lot of confusion about these and they will evolve over time
-but presently for me to get a connection in Safari on Mac or iOS and Chrome or
-Edge on Windows the cert/key pair:
+be disabled for local development convenience. To get a WebTransport connection
+in Safari on Mac or iOS and Chrome or Edge on Windows the certificate key pair:
  - must be ECDSA not RSA
  - must use NIST P-256 (prime256v1 / secp256r1) curve
  - must use SHA-256 signature hash
@@ -24,10 +65,10 @@ Edge on Windows the cert/key pair:
  - must be less than 14 days old
  - must have a hostname SAN (subject alternative name) e.g. "localhost"
 
-So for local development you need two certificates and two keys but you can
-(and should) throw away the CA private key. To generate a ca.pem, cert.pem and
-key.pem this repo has a util script based on Ivar Refsdal's excellent locksmith
-tool which wraps Square's okhttp library.  For local use only, not prod!
+So for local development you need to generate two certificates and two keys but
+you can (and should) throw away the CA private key. This repo has a util script
+based on Ivar Refsdal's excellent locksmith tool which wraps Square's okhttp
+library. For local use only, not production!
 
 ```
 $ clojure -X:util:write-certs
@@ -45,7 +86,7 @@ will be prompted to enter your password to persist the changes.
 If you're on Windows and using Chrome or Edge then go to Settings > Privacy and
 security > Security > Manage certificates to import your `ca.pem` file.
 
-## running
+## Development
 
 ```
 dotnet run --project src/main/csharp -p:Platform=x64
