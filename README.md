@@ -1,12 +1,9 @@
 # WebTransport Server
 
-WebTransport is a new browser Javascript API and a part of the HTTP3 spec (RFC
-9221). To handle WebTransport connections on the server-side you need a partial
-HTTP3 implementation on top of a QUIC engine.
-
-This project wraps libwtf for Java, C# and Clojure programs to allow you to
-respond to handle WebTransport streams and datagrams. The packages include
-native dependencies (libwtf and MsQuic) so they are platform-specific.
+To handle WebTransport streams and datagrams on the server side one needs a
+partial HTTP3 implementation on top of a QUIC engine. This project wraps libwtf
+for Java, C# and Clojure programs and provides platform-specific packages with
+the native dependencies pre-compiled for Windows, macOS and Linux.
 
 ## Example
 
