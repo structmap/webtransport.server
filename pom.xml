@@ -19,7 +19,61 @@
             <groupId>com.structmap</groupId>
             <artifactId>webtransportfast</artifactId>
             <version>0.0.1-alpha7</version>
+            <classifier>${webtransportfast.classifier}</classifier>
         </dependency>
     </dependencies>
 
+    <profiles>
+        <profile>
+            <id>auto-win-x64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <webtransportfast.classifier>win-x64</webtransportfast.classifier>
+            </properties>
+        </profile>
+
+        <profile>
+            <id>auto-win-arm64</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <webtransportfast.classifier>win-arm64</webtransportfast.classifier>
+            </properties>
+        </profile>
+
+        <profile>
+            <id>auto-osx-x64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <webtransportfast.classifier>osx-x64</webtransportfast.classifier>
+            </properties>
+        </profile>
+
+        <profile>
+            <id>auto-osx-arm64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <webtransportfast.classifier>osx-arm64</webtransportfast.classifier>
+            </properties>
+        </profile>
+    </profiles>
 </project>
