@@ -18,7 +18,7 @@
         <dependency>
             <groupId>com.structmap</groupId>
             <artifactId>webtransportfast</artifactId>
-            <version>0.0.1-alpha7</version>
+            <version>0.0.1</version>
             <classifier>${webtransportfast.classifier}</classifier>
         </dependency>
     </dependencies>

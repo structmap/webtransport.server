@@ -10,10 +10,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$(PROCESSOR_ARCHITECTURE)' == 'AMD64'"
-                      Include="Structmap.WebTransportFast.win-x64" Version="0.0.1-alpha7" />
+                      Include="Structmap.WebTransportFast.win-x64" Version="0.0.1" />
     <PackageReference Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$(Platform)' == 'arm64'"
-                      Include="Structmap.WebTransportFast.osx-arm64" Version="0.0.1-alpha7" />
+                      Include="Structmap.WebTransportFast.osx-arm64" Version="0.0.1" />
     <PackageReference Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$(Platform)' == 'x64'"
-                      Include="Structmap.WebTransportFast.osx-x64" Version="0.0.1-alpha7" />
+                      Include="Structmap.WebTransportFast.osx-x64" Version="0.0.1" />
   </ItemGroup>
 </Project>
