@@ -88,3 +88,22 @@ security > Security > Manage certificates to import your `ca.pem` file.
 ```
 dotnet run --project src/main/csharp -p:Platform=x64
 ```
+
+### Native
+
+On Windows you should not need to specify paths to native dependencies because
+the libwtf packages (for JVM and .NET) bundle a self-contained msquic.dll which
+does not load OpenSSL at runtime (it builds its own version at compile time).
+
+On Linux and macOS you will need to use your package manager to provide MsQuic
+and OpenSSL. This usually means `brew info libmsquic` on macOS and `apt install
+libmsquic` on Ubuntu.
+
+On a Mac, depending on how you have Homebrew configured, you may need to tell
+your IDE that it needs to launch any sample programs with the DYLD_LIBRARY_PATH
+environment variable set to the directory which contains the dylib files. In
+recent years SIP (System Integrity Protection) has made this tricky to do from
+the command-line but IntelliJ and Rider can set DYLD_LIBRARY_PATH reliably.
+
+I use `~/.homebrew` for my Brew setup so in run/debug configuration settings I
+add `DYLD_LIBRARY_PATH=$HOME$/.homebrew/lib` to the environment variables.
