@@ -1,4 +1,7 @@
+package com.example;
+
 import com.structmap.webtransportfast.*;
+import com.structmap.WebTransportServer;
 
 import java.io.IOException;
 import java.lang.foreign.*;

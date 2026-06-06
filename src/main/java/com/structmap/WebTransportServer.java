@@ -1,3 +1,5 @@
+package com.structmap;
+
 import com.structmap.webtransportfast.*;
 
 import java.io.*;
@@ -13,7 +15,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-class WebTransportServer {
+public class WebTransportServer {
     static {
         // try to load from jar classpath but fall back to -Djava.library.path VM option in development
         if (!WebTransportFast.load()) {
@@ -378,7 +380,7 @@ class WebTransportServer {
         return false;
     }
 
-    boolean Start() {
+    public boolean Start() {
         var arena = Arena.global();
         var logCallback = wtf_log_callback_t.allocate(
                 this.logCallback,
@@ -445,7 +447,7 @@ class WebTransportServer {
         return true;
     }
 
-    void Stop() {
+    public void Stop() {
         wtf_h.wtf_server_stop(g_server.get(ValueLayout.ADDRESS, 0));
         wtf_h.wtf_server_destroy(g_server.get(ValueLayout.ADDRESS, 0));
         wtf_h.wtf_context_destroy(g_context.get(ValueLayout.ADDRESS, 0));
