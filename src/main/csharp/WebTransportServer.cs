@@ -1,113 +1,20 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using Structmap.WebTransportFast.Native;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Channels;
 using Structmap.WebTransportFast;
+using Structmap.WebTransportFast.Native;
 
-var server = new DatagramServer(8443, "cert.pem", "key.pem");
+namespace Structmap;
 
-server.ChannelFactory = () =>
-{
-    var n = 10;
-    return Channel.CreateBounded<Object>(n);
-};
-
-server.Handler = async (ch) =>
-{
-    await foreach (var e in ch.Reader.ReadAllAsync())
-    {
-        if (e is Datagram d)
-        {
-            Console.Out.WriteLine("[HANDLER] Ready to echo payload {0}", Encoding.ASCII.GetString(d.Payload));
-            d.Context.Server.Send(d.Context.Identifier, d.Payload);
-        }
-
-        if (e is Stream s)
-        {
-            Console.Out.WriteLine("[HANDLER] Ready to echo stream 0x{0:x}", (IntPtr)s.Identifier);
-            // await s.Incoming.CopyToAsync(Console.OpenStandardOutput());
-            await s.Incoming.CopyToAsync(s.Outgoing);
-        }
-    }
-};
-
-using var tokenSource = new CancellationTokenSource();
-Console.CancelKeyPress += (_, _) => {
-    Console.Out.WriteLine("Shutting down...");
-    if (!server.Stop())
-    {
-        Console.Out.WriteLine("Failed to stop server");
-        Environment.Exit(1);
-    }
-    tokenSource.Cancel();
-    Environment.Exit(0);
-};
-
-if (!server.Start())
-{
-    Console.Out.WriteLine("Failed to start server");
-    Environment.Exit(1);
-}
-
-await Task.Delay(Timeout.Infinite, tokenSource.Token);
-
-public record struct Session(DatagramServer Server, Object Identifier);
+public record struct Session(WebTransportServer Server, Object Identifier);
 public record struct Datagram(Session Context, byte[] Payload);
 public record struct Stream(Session Context, Object Identifier, System.IO.Stream Incoming, System.IO.Stream Outgoing);
 public record struct DuplexPipes(Pipe Incoming, Pipe Outgoing, Channel<MemoryHandle> Sent);
 
-public static class DatagramServerUtil
-{
-    public static async void SendLoop(DuplexPipes pp, IntPtr streamPointer)
-    {
-        PipeReader reader = pp.Outgoing.Reader;
-        var ppSent = pp.Sent.Writer;
-        ReadResult result;
-        do
-        {
-            result = await reader.ReadAsync();
-            //Console.Out.WriteLine("readasync success");
-            if (result.IsCanceled) break;
-            var memoryHandles = new List<MemoryHandle>();
-            foreach (var memory in result.Buffer.Slice(result.Buffer.Start, result.Buffer.End))
-            {
-                var mh = memory.Pin();
-                await ppSent.WriteAsync(mh); // potential backpressure here
-                unsafe
-                {
-                    var buffers = MemoryAllocator.malloc((uint)Marshal.SizeOf(typeof(wtf_buffer_t)));
-                    Marshal.WriteIntPtr(buffers, IntPtr.Zero);
-                    Marshal.StructureToPtr(new wtf_buffer_t()
-                    {
-                        data = (byte*)mh.Pointer,
-                        length = (uint)memory.Length,
-                    }, buffers, false);
-
-                    // use the fact that an array of one item is just pointer to the first
-                    var sendResult = Methods.wtf_stream_send((wtf_stream*)streamPointer, (wtf_buffer_t*)buffers, 1, DatagramServer.FALSE);
-                    if (sendResult != wtf_result_t.WTF_SUCCESS)
-                    {
-                        var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(sendResult));
-                        Console.Error.WriteLine("[STREAM] Failed to write to stream 0x{0:x}: {1}",
-                            streamPointer, msg);
-                        //Console.Out.WriteLine("trysend fail");
-                        mh.Dispose();
-                        break;
-                    }
-
-                    //Console.Out.WriteLine("trysend success {0}", memory.Length);
-                    memoryHandles.Add(mh);
-                }
-            }
-            reader.AdvanceTo(result.Buffer.End);
-        } while (!result.IsCompleted);
-    }
-}
-
-public unsafe class DatagramServer
+public unsafe class WebTransportServer
 {
     public const byte FALSE = 0;
     public const byte TRUE = 1;
@@ -148,7 +55,7 @@ public unsafe class DatagramServer
     public Func<Channel<Object>> ChannelFactory;
     public Action<Channel<Object>> Handler;
 
-    public DatagramServer(int port, string cert, string key)
+    public WebTransportServer(int port, string cert, string key)
     {
         this.port = port;
         this.cert = cert;
@@ -228,7 +135,7 @@ public unsafe class DatagramServer
                     });
                     if (bidi)
                     {
-                        Task.Run(() => DatagramServerUtil.SendLoop(pipes, streamPointer));
+                        Task.Run(() => WebTransportServerUtil.SendLoop(pipes, streamPointer));
                     }
                 }
 
