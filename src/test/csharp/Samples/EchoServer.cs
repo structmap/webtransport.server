@@ -6,7 +6,7 @@ namespace Samples;
 
 public static class EchoServer
 {
-    public static async Task Main(string[] args)
+    public static async Task Run()
     {
         var server = new WebTransportServer(8443, "cert.pem", "key.pem")
         {

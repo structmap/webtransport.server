@@ -86,7 +86,9 @@ security > Security > Manage certificates to import your `ca.pem` file.
 ## Development
 
 ```
-dotnet run --project src/main/csharp -p:Platform=x64
+mkdir -p src/test/csharp/Samples/bin/arm64/Debug/net10.0
+cp -v *pem src/test/csharp/Samples/bin/arm64/Debug/net10.0
+dotnet run --project src/test/csharp/Samples -p:Platform=arm64 --configuration Debug --framework net10.0 --environment DYLD_LIBRARY_PATH="$HOME/.homebrew/lib"
 ```
 
 ### Native
