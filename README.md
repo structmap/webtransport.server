@@ -94,7 +94,8 @@ dotnet run --project src/test/csharp/Samples -p:Platform=arm64 --configuration D
 ### Native
 
 On Linux and macOS you will need to provide MsQuic and OpenSSL. This usually
-means `brew install libmsquic` on macOS and `apt install libmsquic` on Ubuntu.
+means `brew install libmsquic` on macOS and `apt install libmsquic` on Ubuntu
+once you have added the [Linux Software Repository for Microsoft Products](https://learn.microsoft.com/en-us/linux/packages).
 
 On a Mac, depending on how you have Homebrew configured, you may need to tell
 your IDE that to launch any sample programs with the DYLD_LIBRARY_PATH
