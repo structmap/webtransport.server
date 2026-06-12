@@ -2,23 +2,25 @@ package com.example;
 
 import com.structmap.webtransportfast.*;
 import com.structmap.WebTransportServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.foreign.*;
 
 class EchoServer {
+    final static Logger logger = LoggerFactory.getLogger(EchoServer.class);
     static void log_callback(int level, MemorySegment component, MemorySegment file, int line,
                              MemorySegment message, MemorySegment user_context) {
-        String[] logLevels = {
-          "WTF_LOG_LEVEL_TRACE", // 0
-          "WTF_LOG_LEVEL_DEBUG", // 1
-          "WTF_LOG_LEVEL_INFO", // 2
-          "WTF_LOG_LEVEL_WARN", // 3
-          "WTF_LOG_LEVEL_ERROR", // 4
-          "WTF_LOG_LEVEL_CRITICAL", // 5
-          "WTF_LOG_LEVEL_NONE" // 6
-        };
-        System.out.println(logLevels[level] + "\t" + message.getString(0));
+        switch (level) {
+            case 0: logger.trace(message.getString(0)); break; //WTF_LOG_LEVEL_TRACE 0
+            case 1: logger.debug(message.getString(0)); break; //WTF_LOG_LEVEL_DEBUG 1
+            case 2: logger.info(message.getString(0)); break; //WTF_LOG_LEVEL_INFO 2
+            case 3: logger.warn(message.getString(0)); break; //WTF_LOG_LEVEL_WARN 3
+            case 4: logger.error(message.getString(0)); break; //WTF_LOG_LEVEL_ERROR 4
+            case 5: logger.error(message.getString(0)); break; //WTF_LOG_LEVEL_CRITICAL 5
+            default: // WTF_LOG_LEVEL_NONE 6
+        }
     }
     static int connection_validator(MemorySegment request, MemorySegment user_data)
     {
@@ -33,13 +35,13 @@ class EchoServer {
             MemorySegment valuePtr = wtf_http_header_t.value(header);
             String key = keyPtr.getString(0);
             String value = valuePtr.getString(0);
-            System.out.printf("[CONN] Header: %s = %s\n", key, value);
+            logger.trace("[CONN] Header: {} = {}", key, value);
         }
 
         return wtf_h.WTF_CONNECTION_ACCEPT();
     }
     static void main() {
-        System.out.println("Starting echo server...");
+        logger.debug("Starting echo server...");
         var server = new WebTransportServer(8443, "cert.pem", "key.pem");
         server.logCallback = EchoServer::log_callback;
         server.connectionValidator = EchoServer::connection_validator;

@@ -14,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class WebTransportServer {
     static {
@@ -23,6 +25,8 @@ public class WebTransportServer {
             System.loadLibrary("wtf");
         }
     }
+
+    final static Logger logger = LoggerFactory.getLogger(WebTransportServer.class);
 
     public MemorySegment g_context;
     public MemorySegment g_server;
@@ -46,20 +50,21 @@ public class WebTransportServer {
                 try {
                     var msg = ch.take();
                     if (msg instanceof Datagram dg) {
-                        System.out.printf("[SERVER] Received message: %s\n", msg);
+                        logger.trace("Received datagram: {}", dg);
                         this.Send(dg.Context.Identifier, dg.Payload);
                     }
                     if (msg instanceof Stream s) {
+                        logger.trace("Received stream: {}", s);
                         Thread.startVirtualThread(() -> {
                             try {
                                 s.Incoming.transferTo(s.Outgoing);
                             } catch (IOException e) {
-                                e.printStackTrace();
+                                logger.error("Failed to transfer stream: {}", e.getMessage());
                             }
                         });
                     }
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    logger.error("Handler thread interrupted: {}", e.getMessage());
                 }
             }
         };
@@ -92,7 +97,7 @@ public class WebTransportServer {
     void session_callback(MemorySegment evt) {
         if (wtf_session_event_t.type(evt) == wtf_h.WTF_SESSION_EVENT_CONNECTED()) {
             var sessionPointer = wtf_session_event_t.session(evt);
-            System.out.printf("[SESSION] New session connected 0x%x\n", sessionPointer.address());
+            logger.debug("New session connected 0x{}", Long.toHexString(sessionPointer.address()));
             var ch = this.channelFactory.get();
             this.sessions.put(sessionPointer, ch);
             Thread.startVirtualThread(() -> this.handler.accept(ch));
@@ -103,8 +108,9 @@ public class WebTransportServer {
             var sessionPointer = wtf_session_event_t.session(evt);
             var streamOpened = wtf_session_event_t.stream_opened(evt);
             var streamPointer = wtf_session_event_t.stream_opened.stream(streamOpened);
-            System.out.printf("[SESSION] New stream 0x%x opened on session 0x%x\n",
-                    streamPointer.address(), sessionPointer.address());
+            logger.debug("New stream 0x{} opened on session 0x{}",
+                    Long.toHexString(streamPointer.address()),
+                    Long.toHexString(sessionPointer.address()));
 
             var ch = this.sessions.get(sessionPointer);
             if (ch != null) {
@@ -121,7 +127,7 @@ public class WebTransportServer {
                         try {
                             outgoing.sink().close();
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            logger.error("Exception: {}", e.getMessage());
                         }
                     }
 
@@ -140,14 +146,14 @@ public class WebTransportServer {
                         Thread.startVirtualThread(() -> sendLoop(pipes, streamPointer));
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    logger.error("Exception: {}", e.getMessage());
                 }
             }
 
             wtf_h.wtf_stream_set_callback(streamPointer,
                     wtf_stream_callback_t.allocate(this.streamCallback, arena));
 
-            System.out.printf("[SESSION] Stream 0x%x configured\n", streamPointer.address());
+            logger.debug("Stream 0x{} configured", Long.toHexString(streamPointer.address()));
             return;
         }
 
@@ -164,8 +170,8 @@ public class WebTransportServer {
             }
             var errorCode = wtf_session_event_t.disconnected.error_code(disconnected);
 
-            System.out.printf("[SESSION] Session 0x%x disconnected (error: %d, reason: %s)\n",
-                    sessionPointer.address(), errorCode, msg);
+            logger.debug("Session 0x{} disconnected (error: {}, reason: {})",
+                    Long.toHexString(sessionPointer.address()), Long.toString(errorCode), msg);
 
             var ch = this.sessions.remove(sessionPointer);
             if (ch != null) {
@@ -179,7 +185,8 @@ public class WebTransportServer {
             var sessionPointer = wtf_session_event_t.session(evt);
             var dr = wtf_session_event_t.datagram_received(evt);
             var n = wtf_session_event_t.datagram_received.length(dr);
-            System.out.printf("[DATAGRAM] Received on session 0x%x (%d bytes)\n", sessionPointer.address(), n);
+            logger.debug("Received on session 0x{} ({} bytes)",
+                    Long.toHexString(sessionPointer.address()), Long.toString(n));
             var d = new Datagram(new Session(this, sessionPointer), new byte[(int) n]);
             var dataPtr = wtf_session_event_t.datagram_received.data(dr);
             MemorySegment.copy(dataPtr, ValueLayout.JAVA_BYTE, 0, d.Payload, 0, (int) n);
@@ -187,7 +194,7 @@ public class WebTransportServer {
             if (ch != null) {
                 ch.offer(d); // TODO: warn on dropped datagram (even better would be to nack at protocol level)
             } else {
-                System.err.printf("No channel for session 0x%x\n", sessionPointer.address());
+                logger.warn("No channel for session 0x{}", Long.toHexString(sessionPointer.address()));
             }
             return;
         }
@@ -213,7 +220,8 @@ public class WebTransportServer {
         }
         if (wtf_session_event_t.type(evt) == wtf_h.WTF_SESSION_EVENT_DRAINING()) {
             var sessionPointer = wtf_session_event_t.session(evt);
-            System.out.printf("[SESSION] Session 0x%x is draining\n", sessionPointer.address());
+            logger.debug("Session 0x{} is draining",
+                    Long.toHexString(sessionPointer.address()));
         }
     }
 
@@ -236,8 +244,8 @@ public class WebTransportServer {
                         var mh = pp.Sent.poll();
                         if (mh != null) {
                             if (data.address() != mh.address()) {
-                                System.err.printf("Buffer pointer mismatch for stream 0x%x\n",
-                                        streamPointer.address());
+                                logger.warn("Buffer pointer mismatch for stream 0x{}",
+                                        Long.toHexString(streamPointer.address()));
                             }
                             ((MemoryAllocator) arena).free(mh);
                         }
@@ -271,25 +279,29 @@ public class WebTransportServer {
                         pp.Incoming.sink().close();
                     }
                 } catch (IOException e) {
-                    System.err.printf("Error writing to stream 0x%x: %s\n",
-                            streamPointer.address(), e.getMessage());
+                    logger.warn("Error writing to stream 0x{}: {}",
+                            Long.toHexString(streamPointer.address()), e.getMessage());
                     e.printStackTrace();
                 }
             } else {
-                System.err.printf("Failed to cast pipes for stream 0x%x\n", streamPointer.address());
+                logger.warn("Failed to cast pipes for stream 0x{}",
+                        Long.toHexString(streamPointer.address()));
             }
             return;
         }
 
         if (eventType == wtf_h.WTF_STREAM_EVENT_PEER_CLOSED()) {
-            System.out.printf("[STREAM] Stream 0x%x closed by peer\n", streamPointer.address());
+            logger.debug("Stream 0x{} closed by peer",
+                    Long.toHexString(streamPointer.address()));
             return;
         }
 
         if (eventType == wtf_h.WTF_STREAM_EVENT_CLOSED()) {
-            System.out.printf("[STREAM] Stream 0x%x fully closed\n", streamPointer.address());
+            logger.debug("Stream 0x{} fully closed",
+                    Long.toHexString(streamPointer.address()));
             if (this.streams.remove(streamPointer) == null) {
-                System.err.printf("Warning: no stream found 0x%x\n", streamPointer.address());
+                logger.warn("Warning: no stream found 0x{}",
+                        Long.toHexString(streamPointer.address()));
             }
             return;
         }
@@ -297,10 +309,10 @@ public class WebTransportServer {
         if (eventType == wtf_h.WTF_STREAM_EVENT_ABORTED()) {
             var aborted = wtf_stream_event_t.aborted(evt);
             var errorCode = wtf_stream_event_t.aborted.error_code(aborted);
-            System.out.printf("[STREAM] Stream 0x%x aborted with error %d\n",
-                    streamPointer.address(), errorCode);
+            logger.debug("Stream 0x{} aborted with error {}",
+                    Long.toHexString(streamPointer.address()), Long.toString(errorCode));
             // if (this.streams.remove(streamPointer) == null) {
-            //     System.err.printf("Failed to remove stream 0x%x\n", streamPointer.address());
+            //     logger.warn("Failed to remove stream 0x{}", Long.toHexString(streamPointer.address()));
             // }
             return;
         }
@@ -321,7 +333,8 @@ public class WebTransportServer {
                     break;
                 }
             } catch (IOException e) {
-                System.err.printf("[STREAM] Failed processing stream 0x%x: %s\n",  streamPointer.address(), e.getMessage());
+                logger.warn("Failed processing stream 0x{}: {}",
+                        Long.toHexString(streamPointer.address()), e.getMessage());
                 e.printStackTrace();
                 break;
             }
@@ -329,7 +342,7 @@ public class WebTransportServer {
             try {
                 sent.put(dataSegment);
             } catch (InterruptedException e) {
-                System.out.printf("[STREAM] Error adding buffer to sent queue: %s\n", e.getMessage());
+                logger.debug("Error adding buffer to sent queue: {}", e.getMessage());
                 e.printStackTrace();
                 break;
             }
@@ -343,8 +356,8 @@ public class WebTransportServer {
             int result = wtf_h.wtf_stream_send(streamPointer, wtfBuffer, 1, false);
             if (result != wtf_h.WTF_SUCCESS()) {
                 var msg = wtf_h.wtf_result_to_string(result);
-                System.err.printf("[STREAM] Failed to write to stream 0x%x: %s\n",
-                        streamPointer.address(), msg.getString(0));
+                logger.warn("Failed to write to stream 0x{}: {}",
+                        Long.toHexString(streamPointer.address()), msg.getString(0));
                 break;
             }
         }
@@ -352,8 +365,8 @@ public class WebTransportServer {
         try {
             outgoingReader.close();
         } catch (IOException e) {
-            System.err.printf("[STREAM] Failed at outgoingReader.close() processing stream 0x%x: %s\n", streamPointer.address());
-            e.printStackTrace();
+            logger.warn("Failed at outgoingReader.close() processing stream 0x{}: {}",
+                    Long.toHexString(streamPointer.address()), e.getMessage());
         }
     }
 
@@ -370,10 +383,10 @@ public class WebTransportServer {
             int result = wtf_h.wtf_session_send_datagram(sessionPtr, buffer, 1);
             if (result != wtf_h.WTF_SUCCESS()) {
                 var msg = wtf_h.wtf_result_to_string(result);
-                System.out.printf("[DATAGRAM] Failed to echo: %s\n", msg.getString(0));
+                logger.debug("Failed to echo: {}", msg.getString(0));
                 return false;
             }
-            System.out.printf("[DATAGRAM] Echoed %d bytes\n", n);
+            logger.debug("Echoed {} bytes", Long.toString(n));
             return true;
         }
 
@@ -395,7 +408,7 @@ public class WebTransportServer {
         var status = wtf_h.wtf_context_create(context_config, g_context);
         if (status != wtf_h.WTF_SUCCESS()) {
             var msg = wtf_h.wtf_result_to_string(status);
-            System.out.printf("[ERROR] Failed to create context: %s\n", msg.getString(0));
+            logger.debug("Failed to create context: {}", msg.getString(0));
             return false;
         }
 
@@ -435,13 +448,13 @@ public class WebTransportServer {
         status = wtf_h.wtf_server_create(g_context.get(ValueLayout.ADDRESS, 0), server_config, g_server);
         if (status != wtf_h.WTF_SUCCESS()) {
             var msg = wtf_h.wtf_result_to_string(status);
-            System.out.printf("[ERROR] Failed to create server: %s\n", msg.getString(0));
+            logger.debug("Failed to create server: {}", msg.getString(0));
         }
 
         status = wtf_h.wtf_server_start(g_server.get(ValueLayout.ADDRESS, 0));
         if (status != wtf_h.WTF_SUCCESS()) {
             var msg = wtf_h.wtf_result_to_string(status);
-            System.out.printf("[ERROR] Failed to start server: %s\n", msg.getString(0));
+            logger.debug("Failed to start server: {}", msg.getString(0));
             return false;
         }
         return true;
