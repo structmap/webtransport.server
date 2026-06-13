@@ -45,6 +45,31 @@ class EchoServer {
         var server = new WebTransportServer(8443, "cert.pem", "key.pem");
         server.logCallback = EchoServer::log_callback;
         server.connectionValidator = EchoServer::connection_validator;
+        server.handler = (ch) -> {
+            // TODO handle channel closing
+            while (true) {
+                try {
+                    var msg = ch.take();
+                    if (msg instanceof WebTransportServer.Datagram dg) {
+                        logger.trace("Received datagram: {}", dg);
+                        server.Send(dg.Context().Identifier(), dg.Payload());
+                    }
+                    if (msg instanceof WebTransportServer.Stream s) {
+                        logger.trace("Received stream: {}", s);
+                        Thread.startVirtualThread(() -> {
+                            try {
+                                s.Incoming().transferTo(s.Outgoing());
+                            } catch (IOException e) {
+                                logger.error("Failed to transfer stream: {}", e.getMessage());
+                            }
+                        });
+                    }
+                } catch (InterruptedException e) {
+                    logger.error("Handler thread interrupted: {}", e.getMessage());
+                }
+            }
+        };
+
         if (!server.Start()) {
             return;
         }

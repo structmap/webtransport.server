@@ -44,30 +44,6 @@ public class WebTransportServer {
         this.streams = new ConcurrentHashMap<>();
         this.streamCallback = this::stream_callback;
         this.channelFactory = () -> new LinkedBlockingQueue<>(10);
-        this.handler = (ch) -> {
-            // TODO handle channel closure
-            while (true) {
-                try {
-                    var msg = ch.take();
-                    if (msg instanceof Datagram dg) {
-                        logger.trace("Received datagram: {}", dg);
-                        this.Send(dg.Context.Identifier, dg.Payload);
-                    }
-                    if (msg instanceof Stream s) {
-                        logger.trace("Received stream: {}", s);
-                        Thread.startVirtualThread(() -> {
-                            try {
-                                s.Incoming.transferTo(s.Outgoing);
-                            } catch (IOException e) {
-                                logger.error("Failed to transfer stream: {}", e.getMessage());
-                            }
-                        });
-                    }
-                } catch (InterruptedException e) {
-                    logger.error("Handler thread interrupted: {}", e.getMessage());
-                }
-            }
-        };
         this.arena = new MemoryAllocator();
     }
 
@@ -393,7 +369,18 @@ public class WebTransportServer {
         return false;
     }
 
+    public boolean ValidConfig() {
+        if (this.handler == null) {
+            logger.error("No handler set");
+            return false;
+        }
+        return true;
+    }
+
     public boolean Start() {
+        if (!this.ValidConfig()) {
+            return false;
+        }
         var arena = Arena.global();
         var logCallback = wtf_log_callback_t.allocate(
                 this.logCallback,
