@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading.Channels;
 using Structmap.WebTransportFast;
 using Structmap.WebTransportFast.Native;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Structmap;
 
@@ -56,6 +58,7 @@ public unsafe class WebTransportServer
 
     public Func<Channel<Object>> ChannelFactory;
     public Func<Channel<Object>,Task<Object>> SessionHandler;
+    public ILogger Logger = NullLogger<WebTransportServer>.Instance;
 
     public WebTransportServer(int port, string cert, string key)
     {
@@ -76,7 +79,7 @@ public unsafe class WebTransportServer
         {
             var k = Marshal.PtrToStringAnsi((IntPtr)request->headers[i].name);
             var v = Marshal.PtrToStringAnsi((IntPtr)request->headers[i].value);
-            Console.Out.WriteLine($"[CONN] Header: {k} = {v}");
+            Logger.LogDebug($"Header: {k} = {v}");
         }
 
         return wtf_connection_decision_t.WTF_CONNECTION_ACCEPT;
@@ -85,7 +88,7 @@ public unsafe class WebTransportServer
     void log_callback(wtf_log_level_t level, sbyte* component, sbyte* file, int line, sbyte* message,
         void* user_context)
     {
-        Console.Out.WriteLine("{0}\t{1}", level, Marshal.PtrToStringAnsi((IntPtr)message));
+        Logger.LogDebug("{0}\t{1}", level, Marshal.PtrToStringAnsi((IntPtr)message));
     }
 
     void session_callback(wtf_session_event_t* evt)
@@ -100,7 +103,7 @@ public unsafe class WebTransportServer
             case wtf_session_event_type_t.WTF_SESSION_EVENT_CONNECTED:
             {
                 var sessionPointer = new IntPtr(evt->session);
-                Console.Out.WriteLine("[SESSION] New session connected 0x{0:x}", sessionPointer);
+                Logger.LogDebug("New session connected 0x{session:x}", sessionPointer);
                 var ch = ChannelFactory();
                 Sessions.TryAdd(sessionPointer, ch);
                 ch.Writer.TryWrite(new Start(new Session(this, sessionPointer)));
@@ -111,7 +114,7 @@ public unsafe class WebTransportServer
             case wtf_session_event_type_t.WTF_SESSION_EVENT_STREAM_OPENED: {
                 var sessionPointer = new IntPtr(evt->session);
                 var streamPointer = new IntPtr(evt->stream_opened.stream);
-                Console.Out.WriteLine("[SESSION] New stream 0x{0:x} opened on session 0x{1:x}", streamPointer, sessionPointer);
+                Logger.LogDebug("New stream 0x{stream:x} opened on session 0x{session:x}", streamPointer, sessionPointer);
 
                 if (Sessions.TryGetValue(sessionPointer, out var ch))
                 {
@@ -145,7 +148,7 @@ public unsafe class WebTransportServer
                 Methods.wtf_stream_set_callback(evt->stream_opened.stream,
                     (delegate* unmanaged[Cdecl]<wtf_stream_event_t*, void>)Marshal.GetFunctionPointerForDelegate(_stream_callback));
 
-                Console.Out.WriteLine("[SESSION] Stream 0x{0:x} configured", streamPointer);
+                Logger.LogDebug("Stream 0x{stream:x} configured", streamPointer);
                 break;
             }
 
@@ -153,7 +156,7 @@ public unsafe class WebTransportServer
                 var msg = Marshal.PtrToStringAnsi((IntPtr)evt->disconnected.reason);
                 if (msg == null || msg == "") msg = "none";
 
-                Console.Out.WriteLine("[SESSION] Session 0x{0:x} disconnected (error: {1}, reason: {2})",
+                Logger.LogDebug("Session 0x{session:x} disconnected (error: {error}, reason: {msg})",
                     (IntPtr)evt->session,
                     evt->disconnected.error_code,
                     msg);
@@ -173,7 +176,7 @@ public unsafe class WebTransportServer
             {
                 var sessionPointer = new IntPtr(evt->session);
                 var n = (int)evt->datagram_received.length;
-                Console.Out.WriteLine("[DATAGRAM] Received on session 0x{0:x} ({1} bytes)",
+                Logger.LogDebug("Received on session 0x{session:x} ({n} bytes)",
                     (IntPtr)evt->session,
                     n);
 
@@ -195,7 +198,7 @@ public unsafe class WebTransportServer
                 }
                 else
                 {
-                    Console.Error.WriteLine("No channel for session 0x{0:x}", (IntPtr)evt->session);
+                    Logger.LogError("No channel for session 0x{session:x}", (IntPtr)evt->session);
                 }
                 break;
             }
@@ -222,7 +225,7 @@ public unsafe class WebTransportServer
             }
 
             case wtf_session_event_type_t.WTF_SESSION_EVENT_DRAINING:
-                Console.Out.WriteLine("[SESSION] Session 0x{0:x} is draining", (IntPtr)evt->session);
+                Logger.LogDebug("Session 0x{session:x} is draining", (IntPtr)evt->session);
                 // TODO: should indicate draining status to handler via channel
                 break;
         }
@@ -246,7 +249,7 @@ public unsafe class WebTransportServer
                                 if (pp.Sent.Reader.TryRead(out MemoryHandle mh)) {
                                     if (evt->send_complete.buffers[i].data != mh.Pointer)
                                     {
-                                        Console.Error.WriteLine("Buffer pointer mismatch for stream 0x{0:x}", (IntPtr)evt->stream);
+                                        Logger.LogError("Buffer pointer mismatch for stream 0x{stream:x}", (IntPtr)evt->stream);
                                     }
                                     mh.Dispose();
                                 }
@@ -282,34 +285,34 @@ public unsafe class WebTransportServer
                     }
                     else
                     {
-                        Console.Error.WriteLine("Failed to cast pipes for stream 0x{0:x}", (IntPtr)evt->stream);
+                        Logger.LogError("Failed to cast pipes for stream 0x{stream:x}", (IntPtr)evt->stream);
                     }
                 }
                 else
                 {
-                    Console.Error.WriteLine("No pipe for stream 0x{0:x}", (IntPtr)evt->stream);
+                    Logger.LogError("No pipe for stream 0x{stream:x}", (IntPtr)evt->stream);
                 }
                 break;
             }
 
             case wtf_stream_event_type_t.WTF_STREAM_EVENT_PEER_CLOSED:
-                Console.Out.WriteLine("[STREAM] Stream 0x{0:x} closed by peer", (IntPtr)evt->stream);
+                Logger.LogDebug("Stream 0x{stream:x} closed by peer", (IntPtr)evt->stream);
                 break;
 
             case wtf_stream_event_type_t.WTF_STREAM_EVENT_CLOSED:
-                Console.Out.WriteLine("[STREAM] Stream 0x{0:x} fully closed", (IntPtr)evt->stream);
+                Logger.LogDebug("Stream 0x{stream:x} fully closed", (IntPtr)evt->stream);
                 if (!Streams.TryRemove(streamPointer, out _))
                 {
-                    Console.Error.WriteLine("Failed to remove stream 0x{0:x}", streamPointer);
+                    Logger.LogError("Failed to remove stream 0x{stream:x}", streamPointer);
                 }
                 break;
 
             case wtf_stream_event_type_t.WTF_STREAM_EVENT_ABORTED:
-                Console.Out.WriteLine("[STREAM] Stream 0x{0:x} aborted with error {1}", (IntPtr)evt->stream,
+                Logger.LogDebug("Stream 0x{stream:x} aborted with error {code}", (IntPtr)evt->stream,
                     evt->aborted.error_code);
                 // if (!Streams.TryRemove(streamPointer, out _))
                 // {
-                //     Console.Error.WriteLine("Failed to remove stream 0x{0:x}", streamPointer);
+                //     Logger.LogError("Failed to remove stream 0x{stream:x}", streamPointer);
                 // }
                 break;
         }
@@ -332,11 +335,11 @@ public unsafe class WebTransportServer
             if (result != wtf_result_t.WTF_SUCCESS)
             {
                 var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(result));
-                Console.Out.WriteLine("[DATAGRAM] Failed to echo: {0}", msg);
+                Logger.LogDebug("Failed to echo: {msg}", msg);
                 MemoryAllocator.free(dst);
                 return false;
             }
-            Console.Out.WriteLine("[DATAGRAM] Echoed {0} bytes", n);
+            Logger.LogDebug("Echoed {n} bytes", n);
             return true;
         }
 
@@ -347,7 +350,7 @@ public unsafe class WebTransportServer
     {
         if (SessionHandler == null)
         {
-            Console.Error.WriteLine("No handler set");
+            Logger.LogError("No handler set");
             return false;
         }
 
@@ -422,7 +425,7 @@ public unsafe class WebTransportServer
             if (status != wtf_result_t.WTF_SUCCESS)
             {
                 var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(status));
-                Console.Out.WriteLine($"[ERROR] Failed to create context: {msg}");
+                Logger.LogError("Failed to create context: {msg}", msg);
                 return false;
             }
 
@@ -430,7 +433,7 @@ public unsafe class WebTransportServer
             if (status != wtf_result_t.WTF_SUCCESS)
             {
                 var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(status));
-                Console.Out.WriteLine($"[ERROR] Failed to create server: {msg}");
+                Logger.LogError("Failed to create server: {msg}", msg);
                 Methods.wtf_context_destroy(g_context);
                 return false;
             }
@@ -439,7 +442,7 @@ public unsafe class WebTransportServer
             if (status != wtf_result_t.WTF_SUCCESS)
             {
                 var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(status));
-                Console.Out.WriteLine($"[ERROR] Failed to start server: {msg}");
+                Logger.LogError("Failed to start server: {msg}", msg);
                 Methods.wtf_server_destroy(g_server);
                 Methods.wtf_context_destroy(g_context);
                 return false;

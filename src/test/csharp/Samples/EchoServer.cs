@@ -1,11 +1,25 @@
 using System.Text;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
+
 using Structmap;
 
 namespace Samples;
 
 public static class EchoServer
 {
+    private static readonly ILogger _logger;
+
+    static EchoServer()
+    {
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddSimpleConsole();
+            builder.SetMinimumLevel(LogLevel.Debug);
+        });
+        _logger = loggerFactory.CreateLogger(nameof(EchoServer));
+    }
+
     public static async Task Run()
     {
         var server = new WebTransportServer(8443, "cert.pem", "key.pem")
@@ -21,39 +35,40 @@ public static class EchoServer
                 {
                     if (e is Start start)
                     {
-                        Console.Out.WriteLine("[HANDLER] Session started 0x{0:x}", (IntPtr)start.Session.Identifier);
+                        _logger.LogInformation("Session started 0x{session:x}", (IntPtr)start.Session.Identifier);
                     }
 
                     if (e is Datagram d)
                     {
-                        Console.Out.WriteLine("[HANDLER] Ready to echo payload {0}", Encoding.ASCII.GetString(d.Payload));
+                        _logger.LogInformation("Ready to echo payload {data}", Encoding.ASCII.GetString(d.Payload));
                         d.Session.Server.Send(new Datagram(d.Session, d.Payload));
                     }
 
                     if (e is Structmap.Stream s)
                     {
-                        Console.Out.WriteLine("[HANDLER] Ready to echo stream 0x{0:x}", (IntPtr)s.Identifier);
+                        _logger.LogInformation("Ready to echo stream 0x{session:x}", (IntPtr)s.Identifier);
                         // await s.Incoming.CopyToAsync(Console.OpenStandardOutput());
                         await s.Incoming.CopyToAsync(s.Outgoing);
                     }
 
                     if (e is End end)
                     {
-                        Console.Out.WriteLine("[HANDLER] Session ending 0x{0:x}", (IntPtr)end.Session.Identifier);
+                        _logger.LogInformation("Session ending 0x{session:x}", (IntPtr)end.Session.Identifier);
                         break;
                     }
                 }
 
                 return null;
-            }
+            },
+            Logger = _logger
         };
 
         var tokenSource = new CancellationTokenSource();
         Console.CancelKeyPress += (_, _) => {
-            Console.Out.WriteLine("Shutting down...");
+            _logger.LogInformation("Shutting down...");
             if (!server.Stop())
             {
-                Console.Out.WriteLine("Failed to stop server");
+                _logger.LogError("Failed to stop server");
                 Environment.Exit(1);
             }
             tokenSource.Cancel();
@@ -62,7 +77,7 @@ public static class EchoServer
 
         if (!server.Start())
         {
-            Console.Out.WriteLine("Failed to start server");
+            _logger.LogError("Failed to start server");
             Environment.Exit(1);
         }
 

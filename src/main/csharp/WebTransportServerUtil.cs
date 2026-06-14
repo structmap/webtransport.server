@@ -8,6 +8,7 @@ namespace Structmap;
 
 public static class WebTransportServerUtil
 {
+
     public static async void SendLoop(DuplexPipes pp, IntPtr streamPointer)
     {
         PipeReader reader = pp.Outgoing.Reader;
@@ -33,19 +34,16 @@ public static class WebTransportServerUtil
                         length = (uint)memory.Length,
                     }, buffers, false);
 
-                    // use the fact that an array of one item is just pointer to the first
+                    // use the fact that an array of one item is just a pointer to the first
                     var sendResult = Methods.wtf_stream_send((wtf_stream*)streamPointer, (wtf_buffer_t*)buffers, 1, WebTransportServer.FALSE);
                     if (sendResult != wtf_result_t.WTF_SUCCESS)
                     {
                         var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(sendResult));
-                        Console.Error.WriteLine("[STREAM] Failed to write to stream 0x{0:x}: {1}",
-                            streamPointer, msg);
-                        //Console.Out.WriteLine("trysend fail");
+                        // logger.LogError("Failed to write to stream 0x{stream:x}: {msg}", streamPointer, msg);
                         mh.Dispose();
                         break;
                     }
 
-                    //Console.Out.WriteLine("trysend success {0}", memory.Length);
                     memoryHandles.Add(mh);
                 }
             }
