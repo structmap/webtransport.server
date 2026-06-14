@@ -320,7 +320,23 @@ public unsafe class WebTransportServer : IWebTransportServer
     /// <inheritdoc />
     public bool Close(Session session, int errorCode = 0, string reason = "")
     {
-        throw new NotImplementedException();
+        var ptr = (IntPtr)session.Identifier;
+        var n = reason.Length;
+        sbyte* reasonBytes = stackalloc sbyte[n + 1];
+        for (int i = 0; i < n; i++)
+        {
+            reasonBytes[i] = (sbyte)reason[i];
+        }
+        reasonBytes[n] = (sbyte)'\0';
+        var result = Methods.wtf_session_close((wtf_session*)ptr, (uint) errorCode, reasonBytes);
+        if (result != wtf_result_t.WTF_SUCCESS)
+        {
+            var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(result));
+            Logger.LogDebug("Failed to close session: 0x{session:x}", ptr);
+            return false;
+        }
+        Logger.LogDebug("Closing session: 0x{session:x}", ptr);
+        return true;
     }
     /// <inheritdoc />
     public bool Drain(Session session)
