@@ -41,7 +41,7 @@ class EchoServer {
 
         return wtf_h.WTF_CONNECTION_ACCEPT();
     }
-    static void session_handler(BlockingQueue<Object> ch) {
+    static Object session_handler(BlockingQueue<Object> ch) {
         while (true) {
             try {
                 var msg = ch.take();
@@ -70,7 +70,8 @@ class EchoServer {
                 logger.error("Handler thread interrupted: {}", e.getMessage());
             }
         }
-    };
+        return null;
+    }
     static void main() {
         logger.debug("Starting echo server...");
         var server = new WebTransportServer(8443, "cert.pem", "key.pem");

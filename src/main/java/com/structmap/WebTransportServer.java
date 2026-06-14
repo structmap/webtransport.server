@@ -12,7 +12,7 @@ import java.nio.channels.Pipe;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -52,7 +52,7 @@ public class WebTransportServer {
     public ConcurrentHashMap<Object,Object> streams;
 
     public Supplier<BlockingQueue<Object>> channelFactory;
-    public Consumer<BlockingQueue<Object>> sessionHandler;
+    public Function<BlockingQueue<Object>,Object> sessionHandler;
 
     public wtf_log_callback_t.Function logCallback;
     public wtf_connection_validator_t.Function connectionValidator;
@@ -89,7 +89,7 @@ public class WebTransportServer {
             var ch = this.channelFactory.get();
             this.sessions.put(sessionPointer, ch);
             ch.offer(new Start(s));
-            Thread.startVirtualThread(() -> this.sessionHandler.accept(ch));
+            Thread.startVirtualThread(() -> this.sessionHandler.apply(ch));
             return;
         }
 
