@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.foreign.*;
+import java.util.concurrent.BlockingQueue;
 
 class EchoServer {
     final static Logger logger = LoggerFactory.getLogger(EchoServer.class);
@@ -40,36 +41,36 @@ class EchoServer {
 
         return wtf_h.WTF_CONNECTION_ACCEPT();
     }
+    static void handler(BlockingQueue<Object> ch) {
+        // TODO handle channel closing
+        while (true) {
+            try {
+                var msg = ch.take();
+                if (msg instanceof WebTransportServer.Datagram dg) {
+                    logger.trace("Received datagram: {}", dg);
+                    dg.Context().Server().Send(dg.Context().Identifier(), dg.Payload());
+                }
+                if (msg instanceof WebTransportServer.Stream s) {
+                    logger.trace("Received stream: {}", s);
+                    Thread.startVirtualThread(() -> {
+                        try {
+                            s.Incoming().transferTo(s.Outgoing());
+                        } catch (IOException e) {
+                            logger.error("Failed to transfer stream: {}", e.getMessage());
+                        }
+                    });
+                }
+            } catch (InterruptedException e) {
+                logger.error("Handler thread interrupted: {}", e.getMessage());
+            }
+        }
+    };
     static void main() {
         logger.debug("Starting echo server...");
         var server = new WebTransportServer(8443, "cert.pem", "key.pem");
         server.logCallback = EchoServer::log_callback;
         server.connectionValidator = EchoServer::connection_validator;
-        server.handler = (ch) -> {
-            // TODO handle channel closing
-            while (true) {
-                try {
-                    var msg = ch.take();
-                    if (msg instanceof WebTransportServer.Datagram dg) {
-                        logger.trace("Received datagram: {}", dg);
-                        server.Send(dg.Context().Identifier(), dg.Payload());
-                    }
-                    if (msg instanceof WebTransportServer.Stream s) {
-                        logger.trace("Received stream: {}", s);
-                        Thread.startVirtualThread(() -> {
-                            try {
-                                s.Incoming().transferTo(s.Outgoing());
-                            } catch (IOException e) {
-                                logger.error("Failed to transfer stream: {}", e.getMessage());
-                            }
-                        });
-                    }
-                } catch (InterruptedException e) {
-                    logger.error("Handler thread interrupted: {}", e.getMessage());
-                }
-            }
-        };
-
+        server.handler = EchoServer::handler;
         if (!server.Start()) {
             return;
         }
