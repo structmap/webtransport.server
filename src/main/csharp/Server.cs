@@ -4,21 +4,18 @@ using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Channels;
-using Structmap.WebTransportFast;
-using Structmap.WebTransportFast.Native;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Structmap.WebTransportFast;
+using Structmap.WebTransportFast.Native;
 
-namespace Structmap;
+namespace Structmap.WebTransport;
 
-public record struct Session(WebTransportServer Server, Object Identifier);
 public record struct Datagram(Session Session, byte[] Payload);
 public record struct Stream(Session Session, Object Identifier, System.IO.Stream Incoming, System.IO.Stream Outgoing);
 public record struct DuplexPipes(Pipe Incoming, Pipe Outgoing, Channel<MemoryHandle> Sent);
-public record Start(Session Session);
-public record End(Session Session);
 
-public unsafe class WebTransportServer : IWebTransportServer
+public unsafe class Server
 {
     public const byte FALSE = 0;
     public const byte TRUE = 1;
@@ -58,9 +55,9 @@ public unsafe class WebTransportServer : IWebTransportServer
 
     public Func<Channel<Object>> ChannelFactory;
     public Func<Channel<Object>,Task<Object>> SessionHandler;
-    public ILogger Logger = NullLogger<WebTransportServer>.Instance;
+    public ILogger Logger = NullLogger<Server>.Instance;
 
-    public WebTransportServer(int port, string cert, string key)
+    public Server(int port, string cert, string key)
     {
         this.port = port;
         this.cert = cert;
@@ -106,7 +103,7 @@ public unsafe class WebTransportServer : IWebTransportServer
                 Logger.LogDebug("New session connected 0x{session:x}", sessionPointer);
                 var ch = ChannelFactory();
                 Sessions.TryAdd(sessionPointer, ch);
-                ch.Writer.TryWrite(new Start(new Session(this, sessionPointer)));
+                ch.Writer.TryWrite(new Session.Start(new Session(this, sessionPointer)));
                 Task.Run(() => SessionHandler(ch));
                 break;
             }
@@ -165,7 +162,7 @@ public unsafe class WebTransportServer : IWebTransportServer
                 if (Sessions.TryGetValue(sessionPointer, out var ch))
                 {
                     var s = new Session(this, sessionPointer);
-                    ch.Writer.TryWrite(new End(s));
+                    ch.Writer.TryWrite(new Session.End(s));
                     ch.Writer.TryComplete(); // only sending sentinel for consistency with Java side
                     Sessions.TryRemove(sessionPointer, out _);
                 }
@@ -317,42 +314,12 @@ public unsafe class WebTransportServer : IWebTransportServer
                 break;
         }
     }
-    /// <inheritdoc />
-    public bool Close(Session session, int errorCode = 0, string reason = "")
-    {
-        var ptr = (IntPtr)session.Identifier;
-        var n = reason.Length;
-        sbyte* reasonBytes = stackalloc sbyte[n + 1];
-        for (int i = 0; i < n; i++)
-        {
-            reasonBytes[i] = (sbyte)reason[i];
-        }
-        reasonBytes[n] = (sbyte)'\0';
-        var result = Methods.wtf_session_close((wtf_session*)ptr, (uint) errorCode, reasonBytes);
-        if (result != wtf_result_t.WTF_SUCCESS)
-        {
-            var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(result));
-            Logger.LogDebug("Failed to close session: 0x{session:x}", ptr);
-            return false;
-        }
-        Logger.LogDebug("Closing session: 0x{session:x}", ptr);
-        return true;
-    }
-    /// <inheritdoc />
-    public bool Drain(Session session)
-    {
-        var ptr = (IntPtr)session.Identifier;
-        var result = Methods.wtf_session_drain((wtf_session*)ptr);
-        if (result != wtf_result_t.WTF_SUCCESS)
-        {
-            var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(result));
-            Logger.LogDebug("Failed to drain session: 0x{session:x}", ptr);
-            return false;
-        }
-        Logger.LogDebug("Draining session: 0x{session:x}", ptr);
-        return true;
-    }
-    /// <inheritdoc />
+    /// <summary>
+    /// Sends a datagram from the server to the connected client by
+    /// invoking wtf_session_send_datagram
+    /// </summary>
+    /// <param name="dg">Session and byte array payload</param>
+    /// <returns>Boolean success or failure</returns>
     public bool Send(Datagram dg)
     {
         var n = (uint)dg.Payload.Length;
@@ -379,31 +346,6 @@ public unsafe class WebTransportServer : IWebTransportServer
         }
 
         return false;
-    }
-    /// <inheritdoc />
-    public System.IO.Stream Push(Session session, System.IO.Stream input, bool bidirectional = true)
-    {
-        throw new NotImplementedException();
-    }
-    /// <inheritdoc />
-    public bool IsHandshaking(Session session)
-    {
-        return wtf_session_state_t.WTF_SESSION_HANDSHAKING == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
-    }
-    /// <inheritdoc />
-    public bool IsConnected(Session session)
-    {
-        return wtf_session_state_t.WTF_SESSION_CONNECTED == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
-    }
-    /// <inheritdoc />
-    public bool IsDraining(Session session)
-    {
-        return wtf_session_state_t.WTF_SESSION_DRAINING == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
-    }
-    /// <inheritdoc />
-    public bool IsClosed(Session session)
-    {
-        return wtf_session_state_t.WTF_SESSION_CLOSED == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
     }
     public bool ValidConfig()
     {

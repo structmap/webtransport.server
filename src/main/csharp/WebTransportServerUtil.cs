@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using Structmap.WebTransportFast;
 using Structmap.WebTransportFast.Native;
 
-namespace Structmap;
+namespace Structmap.WebTransport;
 
 public static class WebTransportServerUtil
 {
@@ -35,7 +35,7 @@ public static class WebTransportServerUtil
                     }, buffers, false);
 
                     // use the fact that an array of one item is just a pointer to the first
-                    var sendResult = Methods.wtf_stream_send((wtf_stream*)streamPointer, (wtf_buffer_t*)buffers, 1, WebTransportServer.FALSE);
+                    var sendResult = Methods.wtf_stream_send((wtf_stream*)streamPointer, (wtf_buffer_t*)buffers, 1, WebTransport.Server.FALSE);
                     if (sendResult != wtf_result_t.WTF_SUCCESS)
                     {
                         var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(sendResult));

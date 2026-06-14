@@ -2,7 +2,8 @@ using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 
-using Structmap;
+using Structmap.WebTransport;
+using Stream = Structmap.WebTransport.Stream;
 
 namespace Samples;
 
@@ -22,7 +23,7 @@ public static class EchoServer
 
     public static async Task Run()
     {
-        var server = new WebTransportServer(8443, "cert.pem", "key.pem")
+        var server = new Server(8443, "cert.pem", "key.pem")
         {
             ChannelFactory = () =>
             {
@@ -33,7 +34,7 @@ public static class EchoServer
             {
                 await foreach (var e in ch.Reader.ReadAllAsync())
                 {
-                    if (e is Start start)
+                    if (e is Session.Start start)
                     {
                         _logger.LogInformation("Session started 0x{session:x}", (IntPtr)start.Session.Identifier);
                     }
@@ -44,14 +45,14 @@ public static class EchoServer
                         d.Session.Server.Send(new Datagram(d.Session, d.Payload));
                     }
 
-                    if (e is Structmap.Stream s)
+                    if (e is Stream s)
                     {
                         _logger.LogInformation("Ready to echo stream 0x{session:x}", (IntPtr)s.Identifier);
                         // await s.Incoming.CopyToAsync(Console.OpenStandardOutput());
                         await s.Incoming.CopyToAsync(s.Outgoing);
                     }
 
-                    if (e is End end)
+                    if (e is Session.End end)
                     {
                         _logger.LogInformation("Session ending 0x{session:x}", (IntPtr)end.Session.Identifier);
                         break;
