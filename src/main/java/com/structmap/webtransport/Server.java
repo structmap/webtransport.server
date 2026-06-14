@@ -1,4 +1,4 @@
-package com.structmap;
+package com.structmap.webtransport;
 
 import com.structmap.webtransportfast.*;
 
@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class WebTransportServer {
+public class Server {
     static {
         // try to load from jar classpath but fall back to -Djava.library.path VM option in development
         if (!WebTransportFast.load()) {
@@ -27,7 +27,7 @@ public class WebTransportServer {
         }
     }
 
-    final static Logger logger = LoggerFactory.getLogger(WebTransportServer.class);
+    final static Logger logger = LoggerFactory.getLogger(Server.class);
 
     public MemorySegment g_context;
     public MemorySegment g_server;
@@ -36,7 +36,7 @@ public class WebTransportServer {
     public String key;
     public Arena arena;
 
-    public WebTransportServer(int port, String cert, String key) {
+    public Server(int port, String cert, String key) {
         this.port = port;
         this.cert = cert;
         this.key = key;
@@ -59,22 +59,7 @@ public class WebTransportServer {
     public wtf_session_callback_t.Function sessionCallback;
     public wtf_stream_callback_t.Function streamCallback;
 
-    public record Session(WebTransportServer server, Object identifier) {
-    }
-
-    public record Datagram(Session session, byte[] payload) {
-    }
-
-    public record Stream(Session session, Object identifier, InputStream incoming, OutputStream outgoing) {
-    }
-
     public record DuplexPipes(Pipe incoming, Pipe outgoing, BlockingQueue<MemorySegment> sent) {
-    }
-
-    public record Start(Session session) {
-    }
-
-    public record End(Session session) {
     }
 
     void session_callback(MemorySegment evt) {
@@ -84,7 +69,7 @@ public class WebTransportServer {
             var s = new Session(this, sessionPointer);
             var ch = this.channelFactory.get();
             this.sessions.put(sessionPointer, ch);
-            ch.offer(new Start(s));
+            ch.offer(new Session.Start(s));
             Thread.startVirtualThread(() -> this.sessionHandler.apply(ch));
             return;
         }
@@ -161,7 +146,7 @@ public class WebTransportServer {
             var ch = this.sessions.remove(sessionPointer);
             if (ch != null) {
                 var s = new Session(this, sessionPointer);
-                ch.offer(new End(s));
+                ch.offer(new Session.End(s));
             } else {
                 logger.warn("No channel for session 0x{}", Long.toHexString(sessionPointer.address()));
             }
@@ -176,7 +161,7 @@ public class WebTransportServer {
                     Long.toHexString(sessionPointer.address()), Long.toString(n));
             var d = new Datagram(new Session(this, sessionPointer), new byte[(int) n]);
             var dataPtr = wtf_session_event_t.datagram_received.data(dr);
-            MemorySegment.copy(dataPtr, ValueLayout.JAVA_BYTE, 0, d.payload, 0, (int) n);
+            MemorySegment.copy(dataPtr, ValueLayout.JAVA_BYTE, 0, d.payload(), 0, (int) n);
             var ch = this.sessions.get(sessionPointer);
             if (ch != null) {
                 ch.offer(d); // TODO: warn on dropped datagram (even better would be to nack at protocol level)
@@ -359,15 +344,15 @@ public class WebTransportServer {
     }
 
     public boolean send(Datagram dg) {
-        var n = dg.payload.length;
+        var n = dg.payload().length;
         var dst = arena.allocate(n);
-        MemorySegment.copy(dg.payload, 0, dst, ValueLayout.JAVA_BYTE, 0, n);
+        MemorySegment.copy(dg.payload(), 0, dst, ValueLayout.JAVA_BYTE, 0, n);
 
         var buffer = wtf_buffer_t.allocate(arena);
         wtf_buffer_t.data(buffer, dst);
         wtf_buffer_t.length(buffer, n);
 
-        if (dg.session.identifier instanceof MemorySegment sessionPtr) {
+        if (dg.session().identifier() instanceof MemorySegment sessionPtr) {
             int result = wtf_h.wtf_session_send_datagram(sessionPtr, buffer, 1);
             if (result != wtf_h.WTF_SUCCESS()) {
                 var msg = wtf_h.wtf_result_to_string(result);
@@ -381,7 +366,7 @@ public class WebTransportServer {
         return false;
     }
 
-    public boolean ValidConfig() {
+    public boolean validConfig() {
         if (this.sessionHandler == null) {
             logger.error("No handler set");
             return false;
@@ -389,8 +374,8 @@ public class WebTransportServer {
         return true;
     }
 
-    public boolean Start() {
-        if (!this.ValidConfig()) {
+    public boolean start() {
+        if (!this.validConfig()) {
             return false;
         }
         var arena = Arena.global();
@@ -459,7 +444,7 @@ public class WebTransportServer {
         return true;
     }
 
-    public void Stop() {
+    public void stop() {
         wtf_h.wtf_server_stop(g_server.get(ValueLayout.ADDRESS, 0));
         wtf_h.wtf_server_destroy(g_server.get(ValueLayout.ADDRESS, 0));
         wtf_h.wtf_context_destroy(g_context.get(ValueLayout.ADDRESS, 0));

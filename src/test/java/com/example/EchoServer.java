@@ -1,7 +1,10 @@
 package com.example;
 
+import com.structmap.webtransport.Datagram;
+import com.structmap.webtransport.Session;
+import com.structmap.webtransport.Stream;
 import com.structmap.webtransportfast.*;
-import com.structmap.WebTransportServer;
+import com.structmap.webtransport.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,15 +48,15 @@ class EchoServer {
         while (true) {
             try {
                 var msg = ch.take();
-                if (msg instanceof WebTransportServer.Start s) {
+                if (msg instanceof Session.Start s) {
                     logger.trace("Session started: {}", s);
                 }
-                if (msg instanceof WebTransportServer.Datagram dg) {
+                if (msg instanceof Datagram dg) {
                     logger.trace("Received datagram: {}", dg);
-                    var reply = new WebTransportServer.Datagram(dg.session(), dg.payload());
+                    var reply = new Datagram(dg.session(), dg.payload());
                     dg.session().server().send(reply);
                 }
-                if (msg instanceof WebTransportServer.Stream s) {
+                if (msg instanceof Stream s) {
                     logger.trace("Received stream: {}", s);
                     Thread.startVirtualThread(() -> {
                         try {
@@ -63,7 +66,7 @@ class EchoServer {
                         }
                     });
                 }
-                if (msg instanceof WebTransportServer.End s) {
+                if (msg instanceof Session.End s) {
                     logger.trace("Session ended: {}", s);
                     break;
                 }
@@ -75,11 +78,11 @@ class EchoServer {
     }
     static void main() {
         logger.debug("Starting echo server...");
-        var server = new WebTransportServer(8443, "cert.pem", "key.pem");
+        var server = new Server(8443, "cert.pem", "key.pem");
         server.logCallback = EchoServer::log_callback;
         server.connectionValidator = EchoServer::connection_validator;
         server.sessionHandler = EchoServer::session_handler;
-        if (!server.Start()) {
+        if (!server.start()) {
             return;
         }
         try {
@@ -87,6 +90,6 @@ class EchoServer {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        server.Stop();
+        server.stop();
     }
 }

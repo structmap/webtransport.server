@@ -5,7 +5,7 @@
         </encoder>
     </appender>
 
-    <logger name="com.structmap.WebTransportServer" level="debug"/>
+    <logger name="com.structmap.webtransport.Server" level="debug"/>
 
     <root level="info">
         <appender-ref ref="STDOUT"/>
