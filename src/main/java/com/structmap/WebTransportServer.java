@@ -62,23 +62,19 @@ public class WebTransportServer {
     public record Session(WebTransportServer server, Object identifier) {
     }
 
-    public interface Sessional {
-        Session session();
+    public record Datagram(Session session, byte[] payload) {
     }
 
-    public record Datagram(Session session, byte[] payload) implements Sessional {
-    }
-
-    public record Stream(Session session, Object identifier, InputStream incoming, OutputStream outgoing) implements Sessional {
+    public record Stream(Session session, Object identifier, InputStream incoming, OutputStream outgoing) {
     }
 
     public record DuplexPipes(Pipe incoming, Pipe outgoing, BlockingQueue<MemorySegment> sent) {
     }
 
-    public record Start(Session session) implements Sessional {
+    public record Start(Session session) {
     }
 
-    public record End(Session session) implements Sessional {
+    public record End(Session session) {
     }
 
     void session_callback(MemorySegment evt) {
