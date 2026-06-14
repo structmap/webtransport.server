@@ -59,26 +59,26 @@ public class WebTransportServer {
     public wtf_session_callback_t.Function sessionCallback;
     public wtf_stream_callback_t.Function streamCallback;
 
-    public record Session(WebTransportServer Server, Object Identifier) {
+    public record Session(WebTransportServer server, Object identifier) {
     }
 
     public interface Sessional {
-        Session Context();
+        Session session();
     }
 
-    public record Datagram(Session Context, byte[] Payload) implements Sessional {
+    public record Datagram(Session session, byte[] payload) implements Sessional {
     }
 
-    public record Stream(Session Context, Object Identifier, InputStream Incoming, OutputStream Outgoing) implements Sessional {
+    public record Stream(Session session, Object identifier, InputStream incoming, OutputStream outgoing) implements Sessional {
     }
 
-    public record DuplexPipes(Pipe Incoming, Pipe Outgoing, BlockingQueue<MemorySegment> Sent) {
+    public record DuplexPipes(Pipe incoming, Pipe outgoing, BlockingQueue<MemorySegment> sent) {
     }
 
-    public record Start(Session Context) implements Sessional {
+    public record Start(Session session) implements Sessional {
     }
 
-    public record End(Session Context) implements Sessional {
+    public record End(Session session) implements Sessional {
     }
 
     void session_callback(MemorySegment evt) {
@@ -180,7 +180,7 @@ public class WebTransportServer {
                     Long.toHexString(sessionPointer.address()), Long.toString(n));
             var d = new Datagram(new Session(this, sessionPointer), new byte[(int) n]);
             var dataPtr = wtf_session_event_t.datagram_received.data(dr);
-            MemorySegment.copy(dataPtr, ValueLayout.JAVA_BYTE, 0, d.Payload, 0, (int) n);
+            MemorySegment.copy(dataPtr, ValueLayout.JAVA_BYTE, 0, d.payload, 0, (int) n);
             var ch = this.sessions.get(sessionPointer);
             if (ch != null) {
                 ch.offer(d); // TODO: warn on dropped datagram (even better would be to nack at protocol level)
@@ -233,7 +233,7 @@ public class WebTransportServer {
                     var data = wtf_buffer_t.data(buffer);
 
                     if (data != null && data.address() != 0) {
-                        var mh = pp.Sent.poll();
+                        var mh = pp.sent.poll();
                         if (mh != null) {
                             if (data.address() != mh.address()) {
                                 logger.warn("Buffer pointer mismatch for stream 0x{}",
@@ -265,10 +265,10 @@ public class WebTransportServer {
                         MemorySegment.copy(data, ValueLayout.JAVA_BYTE, 0, bytes, 0, (int) length);
                         // TODO: in backpressure scenario won't this block event handler loop?
                         // need to fix. possibly with wtf_stream_set_receive_enabled ?
-                        pp.Incoming.sink().write(ByteBuffer.wrap(bytes));
+                        pp.incoming.sink().write(ByteBuffer.wrap(bytes));
                     }
                     if (fin) {
-                        pp.Incoming.sink().close();
+                        pp.incoming.sink().close();
                     }
                 } catch (IOException e) {
                     logger.warn("Error writing to stream 0x{}: {}",
@@ -311,8 +311,8 @@ public class WebTransportServer {
     }
 
     void sendLoop(DuplexPipes pipes, MemorySegment streamPointer) {
-        var outgoingReader = pipes.Outgoing.source();
-        var sent = pipes.Sent;
+        var outgoingReader = pipes.outgoing.source();
+        var sent = pipes.sent;
 
         while (true) {
             var dataSegment = arena.allocate(4096);

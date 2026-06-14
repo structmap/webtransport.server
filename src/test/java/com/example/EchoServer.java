@@ -50,13 +50,13 @@ class EchoServer {
                 }
                 if (msg instanceof WebTransportServer.Datagram dg) {
                     logger.trace("Received datagram: {}", dg);
-                    dg.Context().Server().Send(dg.Context().Identifier(), dg.Payload());
+                    dg.session().server().Send(dg.session().identifier(), dg.payload());
                 }
                 if (msg instanceof WebTransportServer.Stream s) {
                     logger.trace("Received stream: {}", s);
                     Thread.startVirtualThread(() -> {
                         try {
-                            s.Incoming().transferTo(s.Outgoing());
+                            s.incoming().transferTo(s.outgoing());
                         } catch (IOException e) {
                             logger.error("Failed to transfer stream: {}", e.getMessage());
                         }
