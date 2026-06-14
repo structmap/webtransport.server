@@ -50,7 +50,8 @@ class EchoServer {
                 }
                 if (msg instanceof WebTransportServer.Datagram dg) {
                     logger.trace("Received datagram: {}", dg);
-                    dg.session().server().Send(dg.session().identifier(), dg.payload());
+                    var reply = new WebTransportServer.Datagram(dg.session(), dg.payload());
+                    dg.session().server().send(reply);
                 }
                 if (msg instanceof WebTransportServer.Stream s) {
                     logger.trace("Received stream: {}", s);

@@ -358,16 +358,16 @@ public class WebTransportServer {
         }
     }
 
-    public boolean Send(Object session, byte[] data) {
-        var n = data.length;
+    public boolean send(Datagram dg) {
+        var n = dg.payload.length;
         var dst = arena.allocate(n);
-        MemorySegment.copy(data, 0, dst, ValueLayout.JAVA_BYTE, 0, n);
+        MemorySegment.copy(dg.payload, 0, dst, ValueLayout.JAVA_BYTE, 0, n);
 
         var buffer = wtf_buffer_t.allocate(arena);
         wtf_buffer_t.data(buffer, dst);
         wtf_buffer_t.length(buffer, n);
 
-        if (session instanceof MemorySegment sessionPtr) {
+        if (dg.session.identifier instanceof MemorySegment sessionPtr) {
             int result = wtf_h.wtf_session_send_datagram(sessionPtr, buffer, 1);
             if (result != wtf_h.WTF_SUCCESS()) {
                 var msg = wtf_h.wtf_result_to_string(result);
