@@ -38,24 +38,24 @@ public interface IWebTransportServer
     /// Check if session is in handshaking state, likely to be ephemeral
     /// </summary>
     /// <param name="session">Session</param>
-    /// <returns>True if WTF_SESSION_HANDSHAKING, false otherwise/returns>
+    /// <returns>True if WTF_SESSION_HANDSHAKING, false otherwise</returns>
     public bool IsHandshaking(Session session);
     /// <summary>
     /// Check if session was recently in connected state
     /// </summary>
     /// <param name="session">Session</param>
-    /// <returns>True if WTF_SESSION_CONNECTED, false otherwise/returns>
+    /// <returns>True if WTF_SESSION_CONNECTED, false otherwise</returns>
     public bool IsConnected(Session session);
     /// <summary>
     /// Check if session is draining
     /// </summary>
     /// <param name="session">Session</param>
-    /// <returns>True if WTF_SESSION_DRAINING, false otherwise/returns>
+    /// <returns>True if WTF_SESSION_DRAINING, false otherwise</returns>
     public bool IsDraining(Session session);
     /// <summary>
     /// Check if session is closed
     /// </summary>
     /// <param name="session">Session</param>
-    /// <returns>True if WTF_SESSION_CLOSED, false otherwise/returns>
+    /// <returns>True if WTF_SESSION_CLOSED, false otherwise</returns>
     public bool IsClosed(Session session);
 }
