@@ -15,14 +15,19 @@ public static class EchoServer
                 var n = 10;
                 return Channel.CreateBounded<Object>(n);
             },
-            Handler = async (ch) =>
+            SessionHandler = async (ch) =>
             {
                 await foreach (var e in ch.Reader.ReadAllAsync())
                 {
+                    if (e is Start start)
+                    {
+                        Console.Out.WriteLine("[HANDLER] Session started 0x{0:x}", (IntPtr)start.Session.Identifier);
+                    }
+
                     if (e is Datagram d)
                     {
                         Console.Out.WriteLine("[HANDLER] Ready to echo payload {0}", Encoding.ASCII.GetString(d.Payload));
-                        d.Context.Server.Send(d.Context.Identifier, d.Payload);
+                        d.Session.Server.Send(new Datagram(d.Session, d.Payload));
                     }
 
                     if (e is Structmap.Stream s)
@@ -31,7 +36,15 @@ public static class EchoServer
                         // await s.Incoming.CopyToAsync(Console.OpenStandardOutput());
                         await s.Incoming.CopyToAsync(s.Outgoing);
                     }
+
+                    if (e is End end)
+                    {
+                        Console.Out.WriteLine("[HANDLER] Session ending 0x{0:x}", (IntPtr)end.Session.Identifier);
+                        break;
+                    }
                 }
+
+                return null;
             }
         };
 

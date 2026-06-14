@@ -10,9 +10,11 @@ using Structmap.WebTransportFast.Native;
 namespace Structmap;
 
 public record struct Session(WebTransportServer Server, Object Identifier);
-public record struct Datagram(Session Context, byte[] Payload);
-public record struct Stream(Session Context, Object Identifier, System.IO.Stream Incoming, System.IO.Stream Outgoing);
+public record struct Datagram(Session Session, byte[] Payload);
+public record struct Stream(Session Session, Object Identifier, System.IO.Stream Incoming, System.IO.Stream Outgoing);
 public record struct DuplexPipes(Pipe Incoming, Pipe Outgoing, Channel<MemoryHandle> Sent);
+public record Start(Session Session);
+public record End(Session Session);
 
 public unsafe class WebTransportServer
 {
@@ -53,7 +55,7 @@ public unsafe class WebTransportServer
     public ConcurrentDictionary<Object,Object> Streams = new();
 
     public Func<Channel<Object>> ChannelFactory;
-    public Action<Channel<Object>> Handler;
+    public Func<Channel<Object>,Task<Object>> SessionHandler;
 
     public WebTransportServer(int port, string cert, string key)
     {
@@ -101,7 +103,8 @@ public unsafe class WebTransportServer
                 Console.Out.WriteLine("[SESSION] New session connected 0x{0:x}", sessionPointer);
                 var ch = ChannelFactory();
                 Sessions.TryAdd(sessionPointer, ch);
-                Task.Run(() => Handler(ch));
+                ch.Writer.TryWrite(new Start(new Session(this, sessionPointer)));
+                Task.Run(() => SessionHandler(ch));
                 break;
             }
 
@@ -128,7 +131,7 @@ public unsafe class WebTransportServer
                     Streams.TryAdd(streamPointer, pipes);
                     ch.Writer.TryWrite(new Stream()
                     {
-                        Context = new Session(this, sessionPointer),
+                        Session = new Session(this, sessionPointer),
                         Identifier = streamPointer,
                         Incoming = pipes.Incoming.Reader.AsStream(),
                         Outgoing = bidi ? pipes.Outgoing.Writer.AsStream() : System.IO.Stream.Null,
@@ -158,7 +161,9 @@ public unsafe class WebTransportServer
                 var sessionPointer = new IntPtr(evt->session);
                 if (Sessions.TryGetValue(sessionPointer, out var ch))
                 {
-                    ch.Writer.TryComplete();
+                    var s = new Session(this, sessionPointer);
+                    ch.Writer.TryWrite(new End(s));
+                    ch.Writer.TryComplete(); // only sending sentinel for consistency with Java side
                     Sessions.TryRemove(sessionPointer, out _);
                 }
                 break;
@@ -181,7 +186,7 @@ public unsafe class WebTransportServer
                 };
                 var d = new Datagram()
                 {
-                    Context = s,
+                    Session = s,
                     Payload = bs,
                 };
                 if (Sessions.TryGetValue(sessionPointer, out var ch))
@@ -218,6 +223,7 @@ public unsafe class WebTransportServer
 
             case wtf_session_event_type_t.WTF_SESSION_EVENT_DRAINING:
                 Console.Out.WriteLine("[SESSION] Session 0x{0:x} is draining", (IntPtr)evt->session);
+                // TODO: should indicate draining status to handler via channel
                 break;
         }
     }
@@ -309,18 +315,18 @@ public unsafe class WebTransportServer
         }
     }
 
-    public bool Send(Object session, byte[] data)
+    public bool Send(Datagram dg)
     {
-        var n = (uint)data.Length;
+        var n = (uint)dg.Payload.Length;
         var dst = MemoryAllocator.malloc(n);
-        Marshal.Copy(data, 0, dst, data.Length);
+        Marshal.Copy(dg.Payload, 0, dst, dg.Payload.Length);
         var buffer = new wtf_buffer_t()
         {
             data = (byte*)dst,
             length = n,
         };
 
-        if (session is IntPtr p)
+        if (dg.Session.Identifier is IntPtr p)
         {
             wtf_result_t result = Methods.wtf_session_send_datagram((wtf_session*)p, &buffer, 1);
             if (result != wtf_result_t.WTF_SUCCESS)
@@ -337,8 +343,22 @@ public unsafe class WebTransportServer
         return false;
     }
 
+    public bool ValidConfig()
+    {
+        if (SessionHandler == null)
+        {
+            Console.Error.WriteLine("No handler set");
+            return false;
+        }
+
+        return true;
+    }
     public bool Start()
     {
+        if (!ValidConfig())
+        {
+            return false;
+        }
         // stack allocated (no pinning required)
         wtf_context_config_t context_config = new()
         {
