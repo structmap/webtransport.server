@@ -18,7 +18,7 @@ public record struct DuplexPipes(Pipe Incoming, Pipe Outgoing, Channel<MemoryHan
 public record Start(Session Session);
 public record End(Session Session);
 
-public unsafe class WebTransportServer
+public unsafe class WebTransportServer : IWebTransportServer
 {
     public const byte FALSE = 0;
     public const byte TRUE = 1;
@@ -317,7 +317,26 @@ public unsafe class WebTransportServer
                 break;
         }
     }
-
+    /// <inheritdoc />
+    public bool Close(Session session, int errorCode = 0, string reason = "")
+    {
+        throw new NotImplementedException();
+    }
+    /// <inheritdoc />
+    public bool Drain(Session session)
+    {
+        var ptr = (IntPtr)session.Identifier;
+        var result = Methods.wtf_session_drain((wtf_session*)ptr);
+        if (result != wtf_result_t.WTF_SUCCESS)
+        {
+            var msg = Marshal.PtrToStringAnsi((IntPtr)Methods.wtf_result_to_string(result));
+            Logger.LogDebug("Failed to drain session: 0x{session:x}", ptr);
+            return false;
+        }
+        Logger.LogDebug("Draining session: 0x{session:x}", ptr);
+        return true;
+    }
+    /// <inheritdoc />
     public bool Send(Datagram dg)
     {
         var n = (uint)dg.Payload.Length;
@@ -345,7 +364,31 @@ public unsafe class WebTransportServer
 
         return false;
     }
-
+    /// <inheritdoc />
+    public System.IO.Stream Push(Session session, System.IO.Stream input, bool bidirectional = true)
+    {
+        throw new NotImplementedException();
+    }
+    /// <inheritdoc />
+    public bool IsHandshaking(Session session)
+    {
+        return wtf_session_state_t.WTF_SESSION_HANDSHAKING == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
+    }
+    /// <inheritdoc />
+    public bool IsConnected(Session session)
+    {
+        return wtf_session_state_t.WTF_SESSION_CONNECTED == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
+    }
+    /// <inheritdoc />
+    public bool IsDraining(Session session)
+    {
+        return wtf_session_state_t.WTF_SESSION_DRAINING == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
+    }
+    /// <inheritdoc />
+    public bool IsClosed(Session session)
+    {
+        return wtf_session_state_t.WTF_SESSION_CLOSED == Methods.wtf_session_get_state((wtf_session*)(IntPtr)session.Identifier);
+    }
     public bool ValidConfig()
     {
         if (SessionHandler == null)

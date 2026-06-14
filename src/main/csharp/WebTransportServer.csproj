@@ -7,7 +7,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Configurations>Release;Debug</Configurations>
     <Platforms>AnyCPU;arm64;x64</Platforms>
-    <NoWarn>CA1873</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CA1873</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$(PROCESSOR_ARCHITECTURE)' == 'AMD64'"
