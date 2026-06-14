@@ -41,11 +41,13 @@ class EchoServer {
 
         return wtf_h.WTF_CONNECTION_ACCEPT();
     }
-    static void handler(BlockingQueue<Object> ch) {
-        // TODO handle channel closing
+    static void session_handler(BlockingQueue<Object> ch) {
         while (true) {
             try {
                 var msg = ch.take();
+                if (msg instanceof WebTransportServer.Start s) {
+                    logger.trace("Session started: {}", s);
+                }
                 if (msg instanceof WebTransportServer.Datagram dg) {
                     logger.trace("Received datagram: {}", dg);
                     dg.Context().Server().Send(dg.Context().Identifier(), dg.Payload());
@@ -60,6 +62,10 @@ class EchoServer {
                         }
                     });
                 }
+                if (msg instanceof WebTransportServer.End s) {
+                    logger.trace("Session ended: {}", s);
+                    break;
+                }
             } catch (InterruptedException e) {
                 logger.error("Handler thread interrupted: {}", e.getMessage());
             }
@@ -70,7 +76,7 @@ class EchoServer {
         var server = new WebTransportServer(8443, "cert.pem", "key.pem");
         server.logCallback = EchoServer::log_callback;
         server.connectionValidator = EchoServer::connection_validator;
-        server.handler = EchoServer::handler;
+        server.sessionHandler = EchoServer::session_handler;
         if (!server.Start()) {
             return;
         }

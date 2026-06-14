@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +52,7 @@ public class WebTransportServer {
     public ConcurrentHashMap<Object,Object> streams;
 
     public Supplier<BlockingQueue<Object>> channelFactory;
-    public Consumer<BlockingQueue<Object>> handler;
+    public Consumer<BlockingQueue<Object>> sessionHandler;
 
     public wtf_log_callback_t.Function logCallback;
     public wtf_connection_validator_t.Function connectionValidator;
@@ -61,22 +62,34 @@ public class WebTransportServer {
     public record Session(WebTransportServer Server, Object Identifier) {
     }
 
-    public record Datagram(Session Context, byte[] Payload) {
+    public interface Sessional {
+        Session Context();
     }
 
-    public record Stream(Session Context, Object Identifier, InputStream Incoming, OutputStream Outgoing) {
+    public record Datagram(Session Context, byte[] Payload) implements Sessional {
+    }
+
+    public record Stream(Session Context, Object Identifier, InputStream Incoming, OutputStream Outgoing) implements Sessional {
     }
 
     public record DuplexPipes(Pipe Incoming, Pipe Outgoing, BlockingQueue<MemorySegment> Sent) {
+    }
+
+    public record Start(Session Context) implements Sessional {
+    }
+
+    public record End(Session Context) implements Sessional {
     }
 
     void session_callback(MemorySegment evt) {
         if (wtf_session_event_t.type(evt) == wtf_h.WTF_SESSION_EVENT_CONNECTED()) {
             var sessionPointer = wtf_session_event_t.session(evt);
             logger.debug("New session connected 0x{}", Long.toHexString(sessionPointer.address()));
+            var s = new Session(this, sessionPointer);
             var ch = this.channelFactory.get();
             this.sessions.put(sessionPointer, ch);
-            Thread.startVirtualThread(() -> this.handler.accept(ch));
+            ch.offer(new Start(s));
+            Thread.startVirtualThread(() -> this.sessionHandler.accept(ch));
             return;
         }
 
@@ -151,8 +164,10 @@ public class WebTransportServer {
 
             var ch = this.sessions.remove(sessionPointer);
             if (ch != null) {
-                // Note: BlockingQueue doesn't have a Writer.TryComplete() equivalent
-                // The channel will be garbage collected when no longer referenced
+                var s = new Session(this, sessionPointer);
+                ch.offer(new End(s));
+            } else {
+                logger.warn("No channel for session 0x{}", Long.toHexString(sessionPointer.address()));
             }
             return;
         }
@@ -198,6 +213,7 @@ public class WebTransportServer {
             var sessionPointer = wtf_session_event_t.session(evt);
             logger.debug("Session 0x{} is draining",
                     Long.toHexString(sessionPointer.address()));
+            // TODO: should indicate draining status to handler via channel
         }
     }
 
@@ -370,7 +386,7 @@ public class WebTransportServer {
     }
 
     public boolean ValidConfig() {
-        if (this.handler == null) {
+        if (this.sessionHandler == null) {
             logger.error("No handler set");
             return false;
         }
