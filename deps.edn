@@ -2,6 +2,13 @@
  :deps        {org.clojure/clojure {:mvn/version "1.12.4"}}
  :aliases     {:test        {:extra-paths ["src/test/clojure"]}
                :util        {:extra-paths ["src/util/clojure"]}
+               :clerk       {:extra-paths ["notebooks"]
+                             :extra-deps {io.github.nextjournal/clerk {:mvn/version "0.18.1158"}}
+                             :exec-fn nextjournal.clerk/build!
+                             :exec-args {:paths ["readme.md"]
+                                         :index "readme.md"
+                                         :ssr true ; works on CI but broken on Windows
+                                         :out-path "html"}}
                :write-certs {:exec-fn   com.structmap.http3.util/write-certs!
                              :extra-deps {com.squareup.okhttp3/okhttp-tls {:mvn/version "4.10.0"}}
                              :exec-args {}}}}

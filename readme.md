@@ -5,50 +5,9 @@ partial HTTP3 implementation on top of a QUIC engine. This project wraps libwtf
 for Java, C# and Clojure programs and provides platform-specific packages with
 the native dependencies pre-compiled for Windows, macOS and Linux.
 
-## Example
-
-On the client-side:
-
-```js
-const url = 'https://localhost:8443/echo';
-const transport = new WebTransport(url);
-await transport.ready;
-const reader = transport.datagrams.readable.getReader();
-const decoder = new TextDecoder('utf-8');
-const { value, done } = await reader.read();
-let data = decoder.decode(value);
-console.log(data);
-```
-
-On the server-side:
-```clj
-(require '[com.structmap.webtransport.server :as wt])
-
-(defn myhandler [session]
-  (println (format "new session: %s" session))
-  (wt/send session (wt/datagram "hello world"))
-  (doseq [evt (wt/events session)]
-     (when (wt/datagram? evt)
-           (println "echoing datagram")
-           (wt/send session evt))))
-
-(def server
-  (wt/create-server
-    #::wt{:host "localhost"
-          :port 8443
-          :handler #'myhandler
-          :tls ["cert.pem" "key.pem"]}))
-
-(wt/start server)
-```
-
 The JVM implementation uses a virtual thread per WebTransport session. For .NET
 the implementation starts one task per session on the default scheduler. To
 start with JDK 25+ and .NET 10 are the only supported platform versions.
-
-## Docs
-
-See link.
 
 ## Setup
 
@@ -67,7 +26,7 @@ you can (and should) throw away the CA private key. This repo has a util script
 based on Ivar Refsdal's excellent locksmith tool which wraps Square's okhttp
 library. For local use only, not production!
 
-```
+```sh
 $ clojure -X:util:write-certs
 Wrote ca.pem
 Wrote cert.pem
@@ -85,7 +44,7 @@ security > Security > Manage certificates to import your `ca.pem` file.
 
 ## Development
 
-```
+```sh
 mkdir -p src/test/csharp/Samples/bin/arm64/Debug/net10.0
 cp -v *pem src/test/csharp/Samples/bin/arm64/Debug/net10.0
 dotnet run --project src/test/csharp/Samples -p:Platform=arm64 --configuration Debug --framework net10.0 --environment DYLD_LIBRARY_PATH="$HOME/.homebrew/lib"
